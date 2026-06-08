@@ -134,6 +134,16 @@ export const getInitialState = (): AppState => {
     currency: 'Rs.',
     googleUser: null,
     syncQueue: [],
+    companyDetails: {
+      name: 'ConstructSync Corporate Ltd',
+      phone: '+92 300 8765432',
+      email: 'logistics@constructsync.pk',
+      address: 'Suite 101, Core Engineers Heights, Lahore',
+      gstNum: 'NTN-8765432-1'
+    },
+    backupInterval: 15,
+    autoBackupEnabled: false,
+    authorized: false,
   };
 };
 

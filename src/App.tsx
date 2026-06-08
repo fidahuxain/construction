@@ -3,14 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Project, Expense, AppState } from './types';
-import { getInitialState, saveState } from './db';
+import { getInitialState, saveState, downloadFile } from './db';
 import Dashboard from './components/Dashboard';
 import ProjectForm from './components/ProjectForm';
 import ExpenseForms from './components/ExpenseForms';
 import ExpenseList from './components/ExpenseList';
 import SheetsSync from './components/SheetsSync';
+import LoginScreen from './components/LoginScreen';
 import { 
   HardHat, 
   Layers, 
@@ -21,12 +22,95 @@ import {
   Moon, 
   Wifi, 
   Battery, 
-  UserCircle 
+  UserCircle,
+  LogOut,
+  FolderSync,
+  X,
+  Download
 } from 'lucide-react';
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => getInitialState());
   const [activeTab, setActiveTab] = useState<'dashboard' | 'add' | 'vouchers' | 'sync' | 'projects'>('dashboard');
+  
+  const [backupToast, setBackupToast] = useState<{
+    show: boolean;
+    timestamp: string;
+    content: string;
+    fileName: string;
+  } | null>(null);
+
+  // Background Auto Backup Timer effect (runs checking helper)
+  useEffect(() => {
+    if (!state.autoBackupEnabled || !state.authorized) return;
+
+    const intervalSeconds = 10; // Check state boundaries every 10 seconds
+    const timer = setInterval(() => {
+      setState(prev => {
+        if (!prev.autoBackupEnabled) return prev;
+        
+        const backupIntervalMin = prev.backupInterval || 15;
+        const lastBackupTime = prev.lastBackupAt ? new Date(prev.lastBackupAt).getTime() : 0;
+        const now = Date.now();
+        
+        // If elapsed or never done
+        if (now - lastBackupTime >= backupIntervalMin * 60 * 1000) {
+          const formattedDate = new Date().toISOString();
+          const cleanState = {
+            projects: prev.projects,
+            expenses: prev.expenses,
+            companyDetails: prev.companyDetails,
+            currency: prev.currency
+          };
+          const jsonString = JSON.stringify(cleanState, null, 2);
+          const fileName = `constructsync-autobackup-${new Date().toISOString().slice(0, 10)}-${Date.now()}.json`;
+
+          // Spawn async browser download and toast indicator
+          setTimeout(() => {
+            setBackupToast({
+              show: true,
+              timestamp: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+              content: jsonString,
+              fileName: fileName
+            });
+
+            try {
+              downloadFile(jsonString, fileName, 'application/json');
+            } catch (err) {
+              console.warn('Auto backup download blocked by browser sandbox; click toast download button instead');
+            }
+          }, 0);
+
+          return {
+            ...prev,
+            lastBackupAt: formattedDate
+          };
+        }
+        return prev;
+      });
+    }, intervalSeconds * 1000);
+
+    return () => clearInterval(timer);
+  }, [state.autoBackupEnabled, state.backupInterval, state.authorized]);
+
+  if (!state.authorized) {
+    return (
+      <LoginScreen 
+        userEmail="fidahuxain@gmail.com" 
+        onLoginSuccess={(email, name) => {
+          setState(prev => ({
+            ...prev,
+            authorized: true,
+            googleUser: {
+              accessToken: prev.googleUser?.accessToken || null,
+              email: email || 'fidahuxain@gmail.com',
+              name: name || 'Fida Huxain'
+            }
+          }));
+        }} 
+      />
+    );
+  }
 
   // Load and apply themes on load
   useEffect(() => {
@@ -172,22 +256,47 @@ export default function App() {
       {/* Outer framing centered for beautiful visual balance */}
       <div className="max-w-7xl mx-auto px-4 py-6 sm:py-10 space-y-6">
         
-        {/* Navigation Top Bar */}
+        {/* Navigation Top Bar with Corporate Branding */}
         <header className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800 print:hidden">
           <div className="flex items-center gap-3">
-            <span className="p-2.5 bg-orange-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20">
-              <HardHat className="w-6 h-6 animate-pulse" />
-            </span>
+            {state.companyDetails?.logo ? (
+              <img 
+                src={state.companyDetails.logo} 
+                alt="Corporate Logo" 
+                className="w-12 h-12 rounded-xl object-contain bg-white border border-slate-200 p-1 shadow-sm"
+              />
+            ) : (
+              <span className="p-2.5 bg-orange-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20">
+                <HardHat className="w-6 h-6 animate-pulse" />
+              </span>
+            )}
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white font-display">
-                Construct<span className="text-orange-500 font-black">Sync</span>
+              <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white font-display flex items-center gap-2">
+                {state.companyDetails?.name || (<span>Construct<span className="text-orange-500 font-black">Sync</span></span>)}
+                {state.companyDetails && (
+                  <span className="px-1.5 py-0.5 text-[8px] bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 font-extrabold uppercase rounded-md tracking-wider">
+                    CORPORATE
+                  </span>
+                )}
               </h1>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
-                Heavy Duty Supervisor Tools • Offline Ready
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1.5 flex-wrap">
+                <span>Heavy Duty Supervisor Tools</span>
+                {state.companyDetails?.phone && (
+                  <>
+                    <span className="text-slate-300 dark:text-slate-700">•</span>
+                    <span>Ph: {state.companyDetails.phone}</span>
+                  </>
+                )}
+                {state.companyDetails?.gstNum && (
+                  <>
+                    <span className="text-slate-300 dark:text-slate-700">•</span>
+                    <span className="text-orange-605 dark:text-orange-400">NTN/GST: {state.companyDetails.gstNum}</span>
+                  </>
+                )}
               </p>
             </div>
           </div>
-
+ 
           <div className="flex items-center gap-2">
             {/* Dark Mode Switcher Indicator */}
             <button
@@ -201,7 +310,20 @@ export default function App() {
                 <Sun className="w-5 h-5 text-orange-400" />
               )}
             </button>
-
+ 
+            {/* Logout Session Lock */}
+            <button
+              onClick={() => {
+                if (confirm('🔒 Secure Supervisor Lock: Are you sure you want to lock the console terminal?')) {
+                  setState(prev => ({ ...prev, authorized: false }));
+                }
+              }}
+              className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 hover:bg-red-50 dark:hover:bg-red-950/20 text-slate-500 hover:text-red-500 rounded-xl transition-all shadow-xs cursor-pointer"
+              title="Lock Supervisor Console Session"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+ 
             {/* Email Profile view */}
             <span className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-500 font-medium">
               <UserCircle className="w-4 h-4 text-slate-400" />
@@ -264,6 +386,7 @@ export default function App() {
                       }
                     }));
                   }}
+                  companyDetails={state.companyDetails}
                 />
               )}
               {activeTab === 'sync' && (
@@ -276,6 +399,12 @@ export default function App() {
                   onMarkSynced={handleMarkSynced}
                   onRestoreState={handleRestoreState}
                   appState={state}
+                  onUpdateCompanyDetails={(details) => {
+                    setState(prev => ({ ...prev, companyDetails: details }));
+                  }}
+                  onUpdateBackupSettings={(enabled, interval) => {
+                    setState(prev => ({ ...prev, autoBackupEnabled: enabled, backupInterval: interval }));
+                  }}
                 />
               )}
               {activeTab === 'projects' && (
@@ -358,6 +487,51 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {/* Floating Interactive Background Backup Toast Overlay */}
+      {backupToast?.show && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm w-full bg-slate-900 dark:bg-slate-950 text-white rounded-2xl border border-slate-800 shadow-2xl p-4 flex flex-col gap-3 animate-bounce-slow pointer-events-auto">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg">
+                <FolderSync className="w-4 h-4 animate-spin" />
+              </span>
+              <div>
+                <h4 className="text-[10px] font-black tracking-tight text-white uppercase">AUTO BACKUP TRIGGERED</h4>
+                <p className="text-[8px] text-slate-400">Processed successfully at {backupToast.timestamp}</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setBackupToast(null)}
+              className="p-1 text-slate-500 hover:text-white rounded-lg transition-colors cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          
+          <p className="text-[10px] text-slate-300 leading-relaxed font-sans">
+            All active construction registers, materials, labour logs, vouchers, and custom categories have been bundled into a highly secure local JSON backup file format.
+          </p>
+
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              onClick={() => {
+                downloadFile(backupToast.content, backupToast.fileName, 'application/json');
+              }}
+              className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-[9px] font-black tracking-wide transition-all cursor-pointer flex items-center justify-center gap-1 border-0"
+            >
+              <Download className="w-3 h-3" />
+              <span>DOWNLOAD BACKUP (.JSON)</span>
+            </button>
+            <button
+              onClick={() => setBackupToast(null)}
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-705 text-slate-350 hover:text-white rounded-xl text-[9px] font-bold transition-all cursor-pointer border-0"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

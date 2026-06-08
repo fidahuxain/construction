@@ -103,4 +103,16 @@ export interface AppState {
     expenseId: string;
     action: 'create' | 'update' | 'delete';
   }[];
+  companyDetails?: {
+    logo?: string;
+    name: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+    gstNum?: string;
+  };
+  backupInterval?: number; // In minutes, e.g. 5, 15, 30, 60
+  autoBackupEnabled?: boolean;
+  lastBackupAt?: string;
+  authorized?: boolean;
 }

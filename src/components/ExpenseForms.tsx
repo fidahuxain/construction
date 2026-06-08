@@ -51,6 +51,61 @@ export default function ExpenseForms({ project, onAddExpense, onUpdateProject }:
   const [restockQuantity, setRestockQuantity] = useState<number | ''>('');
   const [restockCostPerUnit, setRestockCostPerUnit] = useState<number | ''>('');
 
+  // Symmetrical Inline Dynamic Stock Editing & Warning-Controlled Deletion States
+  const [editingStockId, setEditingStockId] = useState<string | null>(null);
+  const [editingStockName, setEditingStockName] = useState<string>('');
+  const [editingStockUnit, setEditingStockUnit] = useState<string>('');
+  const [editingStockAvailable, setEditingStockAvailable] = useState<number | ''>('');
+  const [editingStockTotalOrdered, setEditingStockTotalOrdered] = useState<number | ''>('');
+
+  const handleDeleteStock = (stockId: string) => {
+    const stockItem = (project.materialStocks || []).find(s => s.id === stockId);
+    const stockName = stockItem ? stockItem.name : 'this item';
+    
+    if (confirm(`⚠️ WARNING: Are you sure you want to permanently delete the stock balance tracker for "${stockName}"? Deleting this tracker will NOT remove previous voucher ledger logs, but current available on-site quantities will be discarded.`)) {
+      const updated = (project.materialStocks || []).filter(s => s.id !== stockId);
+      if (onUpdateProject) {
+        onUpdateProject({
+          ...project,
+          materialStocks: updated
+        });
+      }
+      triggerBanner('success', `Stock tracker "${stockName}" deleted.`);
+      if (editingStockId === stockId) {
+        setEditingStockId(null);
+      }
+    }
+  };
+
+  const handleSaveEditStock = () => {
+    if (!editingStockName.trim()) {
+      triggerBanner('danger', 'Stock item name cannot be empty!');
+      return;
+    }
+    const updated = (project.materialStocks || []).map(s => {
+      if (s.id === editingStockId) {
+        return {
+          ...s,
+          name: editingStockName.trim(),
+          unit: editingStockUnit.trim() || 'units',
+          availableStock: Number(editingStockAvailable) || 0,
+          totalOrdered: Number(editingStockTotalOrdered) || Number(editingStockAvailable) || 0
+        };
+      }
+      return s;
+    });
+
+    if (onUpdateProject) {
+      onUpdateProject({
+        ...project,
+        materialStocks: updated
+      });
+    }
+
+    triggerBanner('success', 'On-site stock configurations updated.');
+    setEditingStockId(null);
+  };
+
   // Custom Category Creation State
   const [showCatModal, setShowCatModal] = useState(false);
   const [newCatName, setNewCatName] = useState('');
@@ -854,11 +909,78 @@ export default function ExpenseForms({ project, onAddExpense, onUpdateProject }:
                           <td colSpan={4} className="py-3 text-center text-slate-400 italic">No registered stock items. Select "+ Register" in the dropdown above to add items.</td>
                         </tr>
                       ) : (
-                        (project.materialStocks || []).map(st => {
-                          const isRestockingThis = restockStockId === st.id;
-                          return (
-                            <React.Fragment key={st.id}>
+                      (project.materialStocks || []).map(st => {
+                        const isRestockingThis = restockStockId === st.id;
+                        const isEditingThis = editingStockId === st.id;
+                        return (
+                          <React.Fragment key={st.id}>
+                            {isEditingThis ? (
                               <tr>
+                                <td className="py-2.5" colSpan={4}>
+                                  <div className="bg-orange-500/5 dark:bg-orange-950/10 p-3 rounded-xl border border-orange-500/20 space-y-2.5 text-left my-1">
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <label className="block text-[8px] font-bold text-slate-450 uppercase tracking-wider mb-0.5">Item Name</label>
+                                        <input 
+                                          type="text"
+                                          value={editingStockName}
+                                          onChange={(e) => setEditingStockName(e.target.value)}
+                                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-805 rounded-lg text-xs font-sans"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-[8px] font-bold text-slate-450 uppercase tracking-wider mb-0.5">Unit</label>
+                                        <input 
+                                          type="text"
+                                          value={editingStockUnit}
+                                          onChange={(e) => setEditingStockUnit(e.target.value)}
+                                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-805 rounded-lg text-xs font-sans"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <label className="block text-[8px] font-bold text-slate-450 uppercase tracking-wider mb-0.5">Available Stock</label>
+                                        <input 
+                                          type="number"
+                                          value={editingStockAvailable}
+                                          onChange={(e) => setEditingStockAvailable(e.target.value ? Number(e.target.value) : '')}
+                                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-805 rounded-lg text-xs font-mono"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-[8px] font-bold text-slate-450 uppercase tracking-wider mb-0.5">Total Ordered History</label>
+                                        <input 
+                                          type="number"
+                                          value={editingStockTotalOrdered}
+                                          onChange={(e) => setEditingStockTotalOrdered(e.target.value ? Number(e.target.value) : '')}
+                                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-805 rounded-lg text-xs font-mono"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    <div className="flex gap-2 justify-end pt-1">
+                                      <button 
+                                        type="button"
+                                        onClick={() => setEditingStockId(null)}
+                                        className="px-2.5 py-1 bg-slate-200 hover:bg-slate-250 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 text-[9px] font-black rounded-lg transition cursor-pointer"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button 
+                                        type="button"
+                                        onClick={handleSaveEditStock}
+                                        className="px-2.5 py-1 bg-orange-650 hover:bg-orange-700 text-white text-[9px] font-black rounded-lg transition cursor-pointer"
+                                      >
+                                        Save Changes
+                                      </button>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            ) : (
+                              <tr className="hover:bg-slate-100/30 dark:hover:bg-slate-900/10">
                                 <td className="py-2.5 font-bold text-slate-900 dark:text-slate-100">{st.name}</td>
                                 <td className="py-2.5">
                                   <span className={`px-2 py-0.5 rounded-md font-bold ${
@@ -871,19 +993,44 @@ export default function ExpenseForms({ project, onAddExpense, onUpdateProject }:
                                 </td>
                                 <td className="py-2.5 font-mono text-slate-405">{st.totalOrdered || st.availableStock} {st.unit}</td>
                                 <td className="py-2.5 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setRestockStockId(isRestockingThis ? null : st.id);
-                                      setRestockQuantity('');
-                                      setRestockCostPerUnit('');
-                                    }}
-                                    className="text-[10px] font-extrabold text-blue-500 hover:text-blue-600 bg-blue-500/10 hover:bg-blue-500/15 px-2.5 py-1 rounded-lg transition"
-                                  >
-                                    {isRestockingThis ? 'Close' : '➕ Order More / Restock'}
-                                  </button>
+                                  <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingStockId(st.id);
+                                        setEditingStockName(st.name);
+                                        setEditingStockUnit(st.unit);
+                                        setEditingStockAvailable(st.availableStock);
+                                        setEditingStockTotalOrdered(st.totalOrdered || st.availableStock);
+                                      }}
+                                      className="text-[9px] font-extrabold text-slate-600 dark:text-slate-400 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 px-2 py-1 rounded-md transition cursor-pointer"
+                                      title="Edit Stock configurations"
+                                    >
+                                      Edit ✏️
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteStock(st.id)}
+                                      className="text-[9px] font-extrabold text-rose-600 hover:text-white bg-rose-500/10 hover:bg-rose-600 px-2 py-1 rounded-md transition cursor-pointer"
+                                      title="Delete stock tracker with warning"
+                                    >
+                                      Delete 🗑️
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setRestockStockId(isRestockingThis ? null : st.id);
+                                        setRestockQuantity('');
+                                        setRestockCostPerUnit('');
+                                      }}
+                                      className="text-[9px] font-black text-blue-500 hover:text-blue-600 bg-blue-500/10 hover:bg-blue-500/15 px-2 py-1 rounded-md transition cursor-pointer"
+                                    >
+                                      {isRestockingThis ? 'Close' : '➕ Restock'}
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
+                            )}
                               {isRestockingThis && (
                                 <tr>
                                   <td colSpan={4} className="py-3 px-2 bg-blue-500/5 rounded-xl border border-dashed border-blue-500/20">
@@ -1259,34 +1406,126 @@ export default function ExpenseForms({ project, onAddExpense, onUpdateProject }:
                         ) : (
                           (project.materialStocks || []).filter(st => st.category === activeCategory).map(st => {
                             const isRestockingThis = restockStockId === st.id;
+                            const isEditingThis = editingStockId === st.id;
                             return (
                               <React.Fragment key={st.id}>
-                                <tr>
-                                  <td className="py-2.5 font-bold text-slate-900 dark:text-slate-100">{st.name}</td>
-                                  <td className="py-2.5">
-                                    <span className={`px-2 py-0.5 rounded-md font-bold ${
-                                      st.availableStock <= 5 
-                                        ? 'bg-rose-500/10 text-rose-500' 
-                                        : 'bg-emerald-500/10 text-emerald-500'
-                                    }`}>
-                                      {st.availableStock} {st.unit}
-                                    </span>
-                                  </td>
-                                  <td className="py-2.5 font-mono text-slate-400">{st.totalOrdered || st.availableStock} {st.unit}</td>
-                                  <td className="py-2.5 text-right font-sans">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setRestockStockId(isRestockingThis ? null : st.id);
-                                        setRestockQuantity('');
-                                        setRestockCostPerUnit('');
-                                      }}
-                                      className="text-[10px] font-extrabold text-blue-500 hover:text-blue-600 bg-blue-500/10 hover:bg-blue-500/15 px-2.5 py-1 rounded-lg transition cursor-pointer"
-                                    >
-                                      {isRestockingThis ? 'Close' : '➕ Order More / Restock'}
-                                    </button>
-                                  </td>
-                                </tr>
+                                {isEditingThis ? (
+                                  <tr>
+                                    <td className="py-2.5" colSpan={4}>
+                                      <div className="bg-orange-500/5 dark:bg-orange-950/10 p-3 rounded-xl border border-orange-500/20 space-y-2.5 text-left my-1">
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <div>
+                                            <label className="block text-[8px] font-bold text-slate-450 uppercase tracking-wider mb-0.5">Item Name *</label>
+                                            <input 
+                                              type="text"
+                                              value={editingStockName}
+                                              onChange={(e) => setEditingStockName(e.target.value)}
+                                              className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-805 rounded-lg text-xs"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block text-[8px] font-bold text-slate-450 uppercase tracking-wider mb-0.5">Unit</label>
+                                            <input 
+                                              type="text"
+                                              value={editingStockUnit}
+                                              onChange={(e) => setEditingStockUnit(e.target.value)}
+                                              className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-805 rounded-lg text-xs"
+                                            />
+                                          </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <div>
+                                            <label className="block text-[8px] font-bold text-slate-450 uppercase tracking-wider mb-0.5">Available Stock</label>
+                                            <input 
+                                              type="number"
+                                              value={editingStockAvailable}
+                                              onChange={(e) => setEditingStockAvailable(e.target.value ? Number(e.target.value) : '')}
+                                              className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-805 rounded-lg text-xs font-mono"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block text-[8px] font-bold text-slate-450 uppercase tracking-wider mb-0.5">Total Ordered History</label>
+                                            <input 
+                                              type="number"
+                                              value={editingStockTotalOrdered}
+                                              onChange={(e) => setEditingStockTotalOrdered(e.target.value ? Number(e.target.value) : '')}
+                                              className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-805 rounded-lg text-xs font-mono"
+                                            />
+                                          </div>
+                                        </div>
+
+                                        <div className="flex gap-2 justify-end pt-1">
+                                          <button 
+                                            type="button"
+                                            onClick={() => setEditingStockId(null)}
+                                            className="px-2.5 py-1 bg-slate-250 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 text-[9px] font-black rounded-lg transition cursor-pointer border-0"
+                                          >
+                                            Cancel
+                                          </button>
+                                          <button 
+                                            type="button"
+                                            onClick={handleSaveEditStock}
+                                            className="px-2.5 py-1 bg-orange-650 hover:bg-orange-700 text-white text-[9px] font-black rounded-lg transition cursor-pointer border-0"
+                                          >
+                                            Save Changes
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  <tr className="hover:bg-slate-100/30 dark:hover:bg-slate-900/10">
+                                    <td className="py-2.5 font-bold text-slate-900 dark:text-slate-100">{st.name}</td>
+                                    <td className="py-2.5">
+                                      <span className={`px-2 py-0.5 rounded-md font-bold ${
+                                        st.availableStock <= 5 
+                                          ? 'bg-rose-500/10 text-rose-500' 
+                                          : 'bg-emerald-500/10 text-emerald-500'
+                                      }`}>
+                                        {st.availableStock} {st.unit}
+                                      </span>
+                                    </td>
+                                    <td className="py-2.5 font-mono text-slate-450">{st.totalOrdered || st.availableStock} {st.unit}</td>
+                                    <td className="py-2.5 text-right font-sans">
+                                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditingStockId(st.id);
+                                            setEditingStockName(st.name);
+                                            setEditingStockUnit(st.unit);
+                                            setEditingStockAvailable(st.availableStock);
+                                            setEditingStockTotalOrdered(st.totalOrdered || st.availableStock);
+                                          }}
+                                          className="text-[9px] font-extrabold text-slate-600 dark:text-slate-400 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-755 px-2 py-1 rounded-md transition cursor-pointer border-0"
+                                          title="Edit stock config"
+                                        >
+                                          Edit ✏️
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteStock(st.id)}
+                                          className="text-[9px] font-extrabold text-rose-600 hover:text-white bg-rose-500/10 hover:bg-rose-600 px-2 py-1 rounded-md transition cursor-pointer border-0"
+                                          title="Delete stock tracker with warning"
+                                        >
+                                          Delete 🗑️
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setRestockStockId(isRestockingThis ? null : st.id);
+                                            setRestockQuantity('');
+                                            setRestockCostPerUnit('');
+                                          }}
+                                          className="text-[9px] font-black text-blue-500 hover:text-blue-600 bg-blue-500/10 hover:bg-blue-500/15 px-2.5 py-1 rounded-lg transition cursor-pointer border-0"
+                                        >
+                                          {isRestockingThis ? 'Close' : '➕ Restock'}
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
                                 {isRestockingThis && (
                                   <tr>
                                     <td colSpan={4} className="py-3 px-2 bg-blue-500/5 rounded-xl border border-dashed border-blue-500/20">

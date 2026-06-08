@@ -29,13 +29,22 @@ interface ExpenseListProps {
   expenses: { [id: string]: Expense };
   onDeleteExpense: (id: string) => void;
   onUpdateExpense: (updated: Expense) => void;
+  companyDetails?: {
+    logo?: string;
+    name: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+    gstNum?: string;
+  };
 }
 
 export default function ExpenseList({ 
   project, 
   expenses, 
   onDeleteExpense, 
-  onUpdateExpense 
+  onUpdateExpense,
+  companyDetails
 }: ExpenseListProps) {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'all' | ExpenseCategory>('all');
@@ -124,20 +133,63 @@ export default function ExpenseList({
       const constructor = project.constructorName || 'N/A';
       const cur = project.currency || 'Rs.';
 
-      // Title & Header Pane
-      doc.setFillColor(30, 41, 59); // deep slate (#1e293b)
-      doc.rect(0, 0, 210, 42, 'F');
+      // Title & Header Pane with Corporate Branding
+      if (companyDetails) {
+        doc.setFillColor(30, 41, 59); // deep slate (#1e293b)
+        doc.rect(0, 0, 210, 45, 'F');
 
-      doc.setTextColor(249, 115, 22); // orange accent (#f97316)
-      doc.setFont('Helvetica', 'bold');
-      doc.setFontSize(16);
-      doc.text("CONSTRUCTION SITE EXPENSE REPORT", 15, 18);
+        doc.setTextColor(249, 115, 22); // orange accent
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(13);
+        doc.text("CONSTRUCTION SITE EXPENSE REPORT", 15, 12);
 
-      doc.setTextColor(255, 255, 255);
-      doc.setFont('Helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.text(`Project Location: ${location} | Issued: ${new Date().toLocaleDateString()}`, 15, 25);
-      doc.text(`Supervisor Lead: ${constructor} | Client Name: ${client}`, 15, 31);
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(9);
+        doc.setFont('Helvetica', 'bold');
+        doc.text((companyDetails.name || 'ConstructSync Partners').toUpperCase(), 15, 18);
+
+        doc.setFont('Helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(203, 213, 225); // slate-300 light gray
+        const contactInfo = [
+          companyDetails.phone ? `Phone: ${companyDetails.phone}` : '',
+          companyDetails.email ? `Email: ${companyDetails.email}` : '',
+          companyDetails.gstNum ? `Tax/GST: ${companyDetails.gstNum}` : ''
+        ].filter(Boolean).join(' | ');
+        
+        doc.text(contactInfo, 15, 23);
+        if (companyDetails.address) {
+          doc.text(`Address: ${companyDetails.address}`, 15, 27);
+        }
+
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(8);
+        doc.setFont('Helvetica', 'bold');
+        doc.text(`Project Register: ${projectName} | Issued: ${new Date().toLocaleDateString()}`, 15, 36);
+
+        // Logo base64 printing support securely
+        if (companyDetails.logo && companyDetails.logo.startsWith('data:')) {
+          try {
+            doc.addImage(companyDetails.logo, 'PNG', 165, 8, 28, 14);
+          } catch(e) {
+            console.error('Invalid base64 logo source: fallback to emblem', e);
+          }
+        }
+      } else {
+        doc.setFillColor(30, 41, 59); // deep slate (#1e293b)
+        doc.rect(0, 0, 210, 42, 'F');
+
+        doc.setTextColor(249, 115, 22); // orange accent (#f97316)
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.text("CONSTRUCTION SITE EXPENSE REPORT", 15, 18);
+
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('Helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.text(`Project Location: ${location} | Issued: ${new Date().toLocaleDateString()}`, 15, 25);
+        doc.text(`Supervisor Lead: ${constructor} | Client Name: ${client}`, 15, 31);
+      }
 
       // We'll calculate totals for materials, labour, transport, and each custom category
       const customCats = project.customCategories || [];
@@ -570,11 +622,36 @@ export default function ExpenseList({
 
       {/* Styled Hidden Printable Page specifically structured for window.print() */}
       <div className="hidden print:block absolute inset-0 bg-white text-zinc-900 p-8 z-99 border-0 max-w-full">
-        <div className="text-center border-b-2 border-zinc-900 pb-5 mb-5">
-          <h1 className="text-2xl font-black uppercase tracking-widest">CONSTRUCTION PROJECT EXPENSE REPORT</h1>
-          <h2 className="text-lg font-bold mt-2">{project.name}</h2>
-          <p className="text-xs text-zinc-650 mt-1">Location: {project.location} • Start Date: {project.startDate}</p>
-        </div>
+        {companyDetails ? (
+          <div className="border-b-2 border-zinc-900 pb-5 mb-6 flex items-start justify-between">
+            <div className="space-y-1">
+              <h1 className="text-xl font-black uppercase tracking-wider text-orange-600">CONSTRUCTION SITE EXPENSE REPORT</h1>
+              <h2 className="text-sm font-black uppercase tracking-normal text-zinc-900">{companyDetails.name}</h2>
+              <p className="text-[10px] text-zinc-500 font-mono">
+                {[
+                  companyDetails.phone ? `Ph: ${companyDetails.phone}` : '',
+                  companyDetails.email ? `Email: ${companyDetails.email}` : '',
+                  companyDetails.gstNum ? `Tax/NTN: ${companyDetails.gstNum}` : ''
+                ].filter(Boolean).join(' • ')}
+              </p>
+              {companyDetails.address && <p className="text-[9px] text-zinc-400">Address: {companyDetails.address}</p>}
+              
+              <div className="pt-2 border-t border-zinc-100 mt-2">
+                <p className="text-xs font-bold text-zinc-800">Site Register: <span className="font-extrabold text-indigo-900">{project.name}</span></p>
+                <p className="text-[10px] text-zinc-500">Location: {project.location} • Start Date: {project.startDate}</p>
+              </div>
+            </div>
+            {companyDetails.logo && companyDetails.logo.startsWith('data:') && (
+              <img src={companyDetails.logo} alt="Company Logo" className="max-h-16 max-w-[150px] object-contain shrink-0 border border-zinc-200 p-1 rounded-lg" />
+            )}
+          </div>
+        ) : (
+          <div className="text-center border-b-2 border-zinc-900 pb-5 mb-5">
+            <h1 className="text-2xl font-black uppercase tracking-widest">CONSTRUCTION PROJECT EXPENSE REPORT</h1>
+            <h2 className="text-lg font-bold mt-2">{project.name}</h2>
+            <p className="text-xs text-zinc-650 mt-1">Location: {project.location} • Start Date: {project.startDate}</p>
+          </div>
+        )}
 
         <table className="w-full text-left text-xs border-collapse">
           <thead>

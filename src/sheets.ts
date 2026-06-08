@@ -278,6 +278,7 @@ export async function syncExpensesToSpreadsheet(
     const totalMaterials = materials.reduce((sum, e: any) => sum + e.totalCost, 0);
     const totalLabour = labours.reduce((sum, e: any) => sum + e.totalAmount, 0);
     const totalTransport = transports.reduce((sum, e: any) => sum + e.cost, 0);
+    const totalConsumed = expenses.filter(e => e.stockStatus === 'Consumed').reduce((sum, e: any) => sum + (e.totalCost || e.totalAmount || e.cost || 0), 0);
     const totalCost = totalMaterials + totalLabour + totalTransport + totalCustom;
 
     const summaryValues = [
@@ -285,10 +286,11 @@ export async function syncExpensesToSpreadsheet(
       ['Labour Expense', 'Total wages for masons, helpers, electricians', totalLabour, new Date().toLocaleString()],
       ['Transportation Expense', 'Fuel deliveries, tractor/truck rental cost', totalTransport, new Date().toLocaleString()],
       ...customSummaryRows,
+      ['TOTAL CONSUMED STOCK VALUE', 'Separate Ledger: Accumulation of active stocks consumed on site', totalConsumed, new Date().toLocaleString()],
       ['GRAND TOTAL PROJECT COST', 'Total accumulated construction costs', totalCost, new Date().toLocaleString()],
     ];
 
-    const rangeEndLine = 4 + customSummaryRows.length + 1; // 4 default lines + custom categories + GRAND TOTAL
+    const rangeEndLine = 4 + customSummaryRows.length + 2; // Default lines + custom categories + TOTAL CONSUMED + GRAND TOTAL
     await overwriteSheetTab(spreadsheetId, `Dashboard Summary!A2:D${rangeEndLine}`, summaryValues, accessToken);
 
     return {

@@ -37,6 +37,8 @@ interface SheetsSyncProps {
   onMarkSynced: (expenseIds: string[]) => void;
   onRestoreState: (state: Partial<AppState>) => void;
   appState: AppState;
+  onUpdateCompanyDetails: (details: AppState['companyDetails']) => void;
+  onUpdateBackupSettings: (enabled: boolean, interval: number) => void;
 }
 
 export default function SheetsSync({
@@ -47,7 +49,9 @@ export default function SheetsSync({
   onLinkSheet,
   onMarkSynced,
   onRestoreState,
-  appState
+  appState,
+  onUpdateCompanyDetails,
+  onUpdateBackupSettings
 }: SheetsSyncProps) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
@@ -554,22 +558,62 @@ export default function SheetsSync({
           </form>
         </div>
 
-        {/* Local Offline Database Backup (Durable Local Storage backup) */}
+        {/* Local Offline Database Backup & Auto-Backup Scheduler */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 p-6 rounded-3xl shadow-sm space-y-4 flex flex-col justify-between">
           <div>
             <h4 className="font-extrabold text-sm tracking-wide uppercase text-slate-900 dark:text-slate-50 flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-3 font-display">
               <Database className="text-orange-500 w-4.5 h-4.5" />
-              Durable Database Backup
+              Backup & Auto-Scheduler
             </h4>
             <p className="text-xs text-slate-500 dark:text-slate-405 leading-relaxed mt-2.5">
-              Protect your local records. Download a comprehensive JSON backup of all construction projects, daily labor records, material invoices, and synced queue rows. Excellent for migrating data to a different supervisor's phone offline without internet.
+              Protect your onsite workspace logs. Download a comprehensive JSON backup or enable the background auto-scheduler to save database copies automatically.
             </p>
+
+            {/* Continuous Auto-Scheduler Inputs */}
+            <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-950/40 border border-slate-150 dark:border-slate-800/80 rounded-2xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">Automatic Background Backups</span>
+                  <span className="text-[10px] text-slate-405 dark:text-slate-550">Runs an automated folder backup download timer</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={!!appState.autoBackupEnabled}
+                    onChange={(e) => onUpdateBackupSettings(e.target.checked, appState.backupInterval || 15)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none dark:bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-orange-600"></div>
+                </label>
+              </div>
+
+              {appState.autoBackupEnabled && (
+                <div className="space-y-2 pt-1 animate-fade-in">
+                  <label className="block text-[10px] uppercase font-bold text-slate-450 tracking-wider">Download Interval (Minutes)</label>
+                  <select
+                    value={appState.backupInterval || 15}
+                    onChange={(e) => onUpdateBackupSettings(true, Number(e.target.value))}
+                    className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2 md:p-2.5 dark:text-white outline-none"
+                  >
+                    <option value={1} className="text-slate-900">Every 1 Minute (Testing)</option>
+                    <option value={5} className="text-slate-900">Every 5 Minutes</option>
+                    <option value={15} className="text-slate-900">Every 15 Minutes</option>
+                    <option value={30} className="text-slate-905">Every 30 Minutes</option>
+                    <option value={60} className="text-slate-905">Every 1 Hour</option>
+                  </select>
+                  <div className="text-[10px] text-emerald-500 font-mono flex items-center gap-1 mt-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Scheduler Active • Last Auto-Save: {appState.lastBackupAt ? new Date(appState.lastBackupAt).toLocaleTimeString() : 'Awaiting Interval'}</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="space-y-3 pt-4">
             <button
               onClick={handleBackupDatabase}
-              className="w-full py-3.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-center gap-2 select-none cursor-pointer"
+              className="w-full py-3.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-center gap-2 select-none cursor-pointer text-center"
             >
               <DownloadCloud className="w-4 h-4 text-slate-500" />
               Download Database Backup (.json)
@@ -577,7 +621,7 @@ export default function SheetsSync({
 
             <button
               onClick={handleTriggerFileInput}
-              className="w-full py-3.5 bg-orange-650 hover:bg-orange-700 text-white rounded-2xl text-xs font-bold flex items-center justify-center gap-2 select-none cursor-pointer active:scale-95 transition-all shadow-md shadow-orange-550/10"
+              className="w-full py-3.5 bg-orange-650 hover:bg-orange-700 text-white rounded-2xl text-xs font-bold flex items-center justify-center gap-2 select-none cursor-pointer active:scale-95 transition-all shadow-md shadow-orange-550/10 text-center"
             >
               <UploadCloud className="w-4 h-4" />
               Upload & Restore Database (.json)
@@ -589,6 +633,135 @@ export default function SheetsSync({
               accept=".json"
               className="hidden"
             />
+          </div>
+        </div>
+      </div>
+
+      {/* Editable Company Details & Logo tab Branding Panel */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-5 text-left">
+        <h4 className="font-extrabold text-sm tracking-wide uppercase text-slate-900 dark:text-slate-50 flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-3 font-display">
+          🏢 Company Details & Ledger Custom Branding
+        </h4>
+        <p className="text-xs text-slate-500 dark:text-slate-405 leading-relaxed">
+          Upload your construction logo, business tax identification details, and office hotlines. Authenticated business parameters will display on top of the supervisor screen, print ledgers, local summaries, and sheets preview headers!
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+          {/* Left panel: Info Form */}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-[10px] uppercase font-bold text-slate-450 mb-1">Company Registered Name *</label>
+              <input
+                type="text"
+                value={appState.companyDetails?.name || ''}
+                onChange={(e) => onUpdateCompanyDetails({ ...(appState.companyDetails || {}), name: e.target.value })}
+                placeholder="e.g. Apex Engineering Solutions"
+                className="w-full text-xs bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl p-3 outline-none focus:ring-1 focus:ring-orange-500 text-slate-900 dark:text-white font-bold"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-450 mb-1">Business Mobile Hotline</label>
+                <input
+                  type="text"
+                  value={appState.companyDetails?.phone || ''}
+                  onChange={(e) => onUpdateCompanyDetails({ ...(appState.companyDetails || {}), phone: e.target.value })}
+                  placeholder="e.g. +92 300 1234567"
+                  className="w-full text-xs bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl p-3 outline-none text-slate-800 dark:text-slate-205"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-450 mb-1">GST/VAT Identification</label>
+                <input
+                  type="text"
+                  value={appState.companyDetails?.gstNum || ''}
+                  onChange={(e) => onUpdateCompanyDetails({ ...(appState.companyDetails || {}), gstNum: e.target.value })}
+                  placeholder="e.g. NTN-9876543"
+                  className="w-full text-xs bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl p-3 outline-none text-slate-800 dark:text-slate-205"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-450 mb-1">Business Support Email</label>
+                <input
+                  type="email"
+                  value={appState.companyDetails?.email || ''}
+                  onChange={(e) => onUpdateCompanyDetails({ ...(appState.companyDetails || {}), email: e.target.value })}
+                  placeholder="e.g. contact@apexeng.pk"
+                  className="w-full text-xs bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl p-3 outline-none text-slate-800 dark:text-slate-205"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-450 mb-1">Office Hub Address</label>
+                <input
+                  type="text"
+                  value={appState.companyDetails?.address || ''}
+                  onChange={(e) => onUpdateCompanyDetails({ ...(appState.companyDetails || {}), address: e.target.value })}
+                  placeholder="e.g. Block A-12, Airport Avenue"
+                  className="w-full text-xs bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl p-3 outline-none text-slate-800 dark:text-slate-205"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Right panel: Digital Logo Upload */}
+          <div className="p-4 bg-slate-50 dark:bg-slate-950/40 rounded-3xl border border-slate-155 dark:border-slate-800 space-y-4">
+            <span className="text-[10px] uppercase font-bold text-slate-450 block mb-1">Registered Business Logo</span>
+            
+            <div className="flex items-center gap-4">
+              {appState.companyDetails?.logo ? (
+                <div className="relative w-20 h-20 bg-white border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center">
+                  <img
+                    src={appState.companyDetails.logo}
+                    alt="Uploaded Company Branding Logo"
+                    className="max-w-full max-h-full object-contain p-1.5"
+                    referrerPolicy="no-referrer"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onUpdateCompanyDetails({ ...(appState.companyDetails || { name: 'ConstructSync' }), logo: undefined })}
+                    className="absolute -top-1 -right-1 bg-red-600 hover:bg-red-700 text-white p-1 rounded-bl-xl shadow-md cursor-pointer text-[9px] font-bold"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <div className="w-20 h-20 bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-705 border-dashed rounded-2xl flex flex-col items-center justify-center text-slate-400">
+                  <Database className="w-8 h-8 animate-pulse text-slate-400" />
+                  <span className="text-[8px] uppercase tracking-wide font-black mt-1">NO LOGO</span>
+                </div>
+              )}
+
+              <div className="flex-1 space-y-2">
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  Upload an image (PNG, JPG, or SVG). Recommended aspect ratio is square or rectangle, size under 1MB. It turns into Base64 format instantly.
+                </p>
+                <label className="inline-block px-3.5 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-250 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl cursor-pointer transition select-none">
+                  Choose Image File
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          onUpdateCompanyDetails({
+                            ...(appState.companyDetails || { name: 'ConstructSync Corporate Ltd' }),
+                            logo: event.target?.result as string
+                          });
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -851,58 +1024,61 @@ export default function SheetsSync({
 
                 {mockPreviewTab === 'material' && (
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-2xl overflow-hidden shadow-xs">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-slate-50 dark:bg-slate-950 text-slate-400 font-bold border-b border-slate-200 dark:border-slate-850">
-                          <th className="p-3 border-r border-slate-200 dark:border-slate-850/60">Date</th>
-                          <th className="p-3 border-r border-slate-200 dark:border-slate-850/60">Material Name</th>
-                          <th className="p-3 border-r border-slate-200 dark:border-slate-850/60">Supplier</th>
-                          <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-right">Quantity</th>
-                          <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 font-medium">Unit</th>
-                          <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-right">Rate per Unit</th>
-                          <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-right">Total Cost</th>
-                          <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-center">Stock Status</th>
-                          <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-right">Remaining Stock</th>
-                          <th className="p-3">Notes</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-850 font-mono text-[11px]">
-                        {mats.length === 0 ? (
-                          <tr><td colSpan={10} className="p-8 text-center text-slate-400 font-medium font-sans">No synchronized Materials vouchers for this project workbook.</td></tr>
-                        ) : mats.map((m: any) => (
-                          <tr key={m.id}>
-                            <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-slate-500">{m.date}</td>
-                            <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 font-bold font-sans text-slate-900 dark:text-white">{m.materialName}</td>
-                            <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-slate-650">{m.supplierName || '-'}</td>
-                            <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-right text-slate-805 font-bold">{m.quantity}</td>
-                            <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-slate-500 uppercase">{m.unit}</td>
-                            <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-right text-slate-700">₹{m.costPerUnit}</td>
-                            <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-right font-extrabold text-blue-600 dark:text-blue-400">₹{m.totalCost}</td>
-                            <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-center">
-                              {m.stockStatus ? (
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
-                                  m.stockStatus === 'New Order' 
-                                    ? 'bg-emerald-500/10 text-emerald-605 dark:text-emerald-400 border border-emerald-500/15' 
-                                    : 'bg-orange-500/10 text-orange-605 dark:text-orange-400 border border-orange-500/15'
-                                }`}>
-                                  {m.stockStatus}
-                                </span>
-                              ) : '-'}
-                            </td>
-                            <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-right text-slate-805 font-extrabold">
-                              {m.remainingStock !== undefined ? `${m.remainingStock} ${m.unit}` : '-'}
-                            </td>
-                            <td className="p-3 text-slate-400 max-w-xs truncate font-sans">{m.notes || '-'}</td>
+                    <div className="overflow-x-auto w-full">
+                      <table className="min-w-[1000px] w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 dark:bg-slate-950 text-slate-400 font-bold border-b border-slate-200 dark:border-slate-850">
+                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60">Date</th>
+                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60">Material Name</th>
+                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60">Supplier</th>
+                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-right">Quantity</th>
+                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 font-medium">Unit</th>
+                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-right">Rate per Unit</th>
+                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-right">Total Cost</th>
+                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-center">Stock Status</th>
+                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-right">Remaining Stock</th>
+                            <th className="p-3">Notes</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-850 font-mono text-[11px]">
+                          {mats.length === 0 ? (
+                            <tr><td colSpan={10} className="p-8 text-center text-slate-400 font-medium font-sans">No synchronized Materials vouchers for this project workbook.</td></tr>
+                          ) : mats.map((m: any) => (
+                            <tr key={m.id}>
+                              <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-slate-500">{m.date}</td>
+                              <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 font-bold font-sans text-slate-900 dark:text-white">{m.materialName}</td>
+                              <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-slate-650">{m.supplierName || '-'}</td>
+                              <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-right text-slate-805 font-bold">{m.quantity}</td>
+                              <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-slate-505 uppercase">{m.unit}</td>
+                              <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-right text-slate-700">{currencySymbol}{m.costPerUnit}</td>
+                              <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-right font-extrabold text-blue-600 dark:text-blue-400">{currencySymbol}{m.totalCost}</td>
+                              <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-center">
+                                {m.stockStatus ? (
+                                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                                    m.stockStatus === 'New Order' 
+                                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/15' 
+                                      : 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/15'
+                                  }`}>
+                                    {m.stockStatus}
+                                  </span>
+                                ) : '-'}
+                              </td>
+                              <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-right text-slate-805 font-extrabold">
+                                {m.remainingStock !== undefined ? `${m.remainingStock} ${m.unit}` : '-'}
+                              </td>
+                              <td className="p-3 text-slate-400 max-w-xs truncate font-sans">{m.notes || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
 
                 {mockPreviewTab === 'labour' && (
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-2xl overflow-hidden shadow-xs">
-                    <table className="w-full text-left border-collapse text-xs">
+                    <div className="overflow-x-auto w-full">
+                      <table className="min-w-[850px] w-full text-left border-collapse text-xs">
                       <thead>
                         <tr className="bg-slate-50 dark:bg-slate-950 text-slate-400 font-bold border-b border-slate-200 dark:border-slate-850">
                           <th className="p-3 border-r border-slate-200 dark:border-slate-850/60">Date</th>
@@ -931,34 +1107,37 @@ export default function SheetsSync({
                       </tbody>
                     </table>
                   </div>
+                </div>
                 )}
 
                 {mockPreviewTab === 'transport' && (
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-2xl overflow-hidden shadow-xs">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-slate-50 dark:bg-slate-950 text-slate-400 font-bold border-b border-slate-200 dark:border-slate-850">
-                          <th className="p-3 border-r border-slate-200 dark:border-slate-850/60">Date</th>
-                          <th className="p-3 border-r border-slate-200 dark:border-slate-850/60">Vehicle / Transport Mode</th>
-                          <th className="p-3 border-r border-slate-200 dark:border-slate-850/60">Usage / Purpose</th>
-                          <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-right">Fuel & Rental Cost</th>
-                          <th className="p-3">Notes</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-850 font-mono text-[11px]">
-                        {transps.length === 0 ? (
-                          <tr><td colSpan={5} className="p-8 text-center text-slate-400 font-medium font-sans">No synchronized Transportation/Fuel vouchers for this project workbook.</td></tr>
-                        ) : transps.map((t: any) => (
-                          <tr key={t.id}>
-                            <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-slate-500">{t.date}</td>
-                            <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 font-bold font-sans text-slate-900 dark:text-white">{t.vehicleType}</td>
-                            <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-slate-650 font-sans">{t.description}</td>
-                            <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-right font-extrabold text-cyan-600 dark:text-cyan-400">₹{t.cost}</td>
-                            <td className="p-3 text-slate-400 max-w-xs truncate font-sans">{t.notes || '-'}</td>
+                    <div className="overflow-x-auto w-full">
+                      <table className="min-w-[800px] w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 dark:bg-slate-950 text-slate-400 font-bold border-b border-slate-200 dark:border-slate-850">
+                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60">Date</th>
+                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60">Vehicle / Transport Mode</th>
+                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60">Usage / Purpose</th>
+                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-right">Fuel & Rental Cost</th>
+                            <th className="p-3">Notes</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-850 font-mono text-[11px]">
+                          {transps.length === 0 ? (
+                            <tr><td colSpan={5} className="p-8 text-center text-slate-400 font-medium font-sans">No synchronized Transportation/Fuel vouchers for this project workbook.</td></tr>
+                          ) : transps.map((t: any) => (
+                            <tr key={t.id}>
+                              <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-slate-500">{t.date}</td>
+                              <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 font-bold font-sans text-slate-900 dark:text-white">{t.vehicleType}</td>
+                              <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-slate-655 font-sans">{t.description}</td>
+                              <td className="p-3 border-r border-slate-100 dark:border-slate-850/60 text-right font-extrabold text-cyan-600 dark:text-cyan-400">{currencySymbol}{t.cost}</td>
+                              <td className="p-3 text-slate-400 max-w-xs truncate font-sans">{t.notes || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
 
@@ -969,52 +1148,54 @@ export default function SheetsSync({
 
                   return (
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-2xl overflow-hidden shadow-xs">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-slate-50 dark:bg-slate-950 text-slate-400 font-bold border-b border-slate-200 dark:border-slate-850">
-                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60">Date</th>
-                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60">Item Name</th>
-                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60">Supplier / Provider</th>
-                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-right">Quantity</th>
-                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 font-medium">Unit</th>
-                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-right border-slate-100">Rate per Unit</th>
-                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-right">Total Cost</th>
-                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-center">Stock Status</th>
-                            <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-right">Remaining Stock</th>
-                            <th className="p-3">Notes</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-850 font-mono text-[11px]">
-                          {currCat.expensesList.length === 0 ? (
-                            <tr><td colSpan={10} className="p-8 text-center text-slate-400 font-medium font-sans">No synchronized dynamic records in tab "{currCat.name}" for this project workbook.</td></tr>
-                          ) : currCat.expensesList.map((e: any) => (
-                            <tr key={e.id}>
-                              <td className="p-3 border-r border-slate-100 text-slate-500">{e.date}</td>
-                              <td className="p-3 border-r border-slate-100 font-bold font-sans text-slate-900 dark:text-white">{e.itemName || '-'}</td>
-                              <td className="p-3 border-r border-slate-100 font-sans text-slate-650">{e.supplierName || e.supplierOrProvider || '-'}</td>
-                              <td className="p-3 border-r border-slate-100 text-right text-slate-805 font-bold">{e.quantity || '-'}</td>
-                              <td className="p-3 border-r border-slate-100 uppercase text-slate-500 font-sans text-[10px]">{e.unit || '-'}</td>
-                              <td className="p-3 border-r border-slate-100 text-right text-slate-700">₹{e.costPerUnit || '-'}</td>
-                              <td className="p-3 border-r border-slate-100 text-right font-extrabold text-pink-600 dark:text-pink-400">₹{e.totalCost || '-'}</td>
-                              <td className="p-3 border-r border-slate-100 text-center">
-                                {e.stockStatus ? (
-                                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
-                                    e.stockStatus === 'New Order' 
-                                      ? 'bg-emerald-500/10 text-emerald-605 dark:text-emerald-400 border border-emerald-500/15' 
-                                      : 'bg-orange-500/10 text-orange-605 dark:text-orange-400 border border-orange-500/15'
-                                  }`}>
-                                    {e.stockStatus}
-                                  </span>
-                                ) : '-'}
-                              </td>
-                              <td className="p-3 border-r border-slate-100 text-right text-slate-805 font-extrabold">
-                                {e.remainingStock !== undefined ? `${e.remainingStock} ${e.unit}` : '-'}
-                              </td>
-                              <td className="p-3 text-slate-400 max-w-xs truncate font-sans">{e.notes || '-'}</td>
+                      <div className="overflow-x-auto w-full">
+                        <table className="min-w-[1000px] w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-slate-50 dark:bg-slate-950 text-slate-400 font-bold border-b border-slate-200 dark:border-slate-850">
+                              <th className="p-3 border-r border-slate-200 dark:border-slate-850/60">Date</th>
+                              <th className="p-3 border-r border-slate-200 dark:border-slate-850/60">Item Name</th>
+                              <th className="p-3 border-r border-slate-200 dark:border-slate-850/60">Supplier / Provider</th>
+                              <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-right">Quantity</th>
+                              <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 font-medium font-sans">Unit</th>
+                              <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-right border-slate-100">Rate per Unit</th>
+                              <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-right">Total Cost</th>
+                              <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-center">Stock Status</th>
+                              <th className="p-3 border-r border-slate-200 dark:border-slate-850/60 text-right">Remaining Stock</th>
+                              <th className="p-3">Notes</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-850 font-mono text-[11px]">
+                            {currCat.expensesList.length === 0 ? (
+                              <tr><td colSpan={10} className="p-8 text-center text-slate-400 font-medium font-sans">No synchronized dynamic records in tab "{currCat.name}" for this project workbook.</td></tr>
+                            ) : currCat.expensesList.map((e: any) => (
+                              <tr key={e.id}>
+                                <td className="p-3 border-r border-slate-100 text-slate-500">{e.date}</td>
+                                <td className="p-3 border-r border-slate-100 font-bold font-sans text-slate-900 dark:text-white">{e.itemName || '-'}</td>
+                                <td className="p-3 border-r border-slate-100 font-sans text-slate-650">{e.supplierName || e.supplierOrProvider || '-'}</td>
+                                <td className="p-3 border-r border-slate-100 text-right text-slate-805 font-bold">{e.quantity || '-'}</td>
+                                <td className="p-3 border-r border-slate-105 uppercase text-slate-500 font-sans text-[10px]">{e.unit || '-'}</td>
+                                <td className="p-3 border-r border-slate-105 text-right text-slate-705">{e.costPerUnit ? `${currencySymbol}${e.costPerUnit}` : '-'}</td>
+                                <td className="p-3 border-r border-slate-105 text-right font-extrabold text-pink-600 dark:text-pink-400">{currencySymbol}{e.totalCost || '-'}</td>
+                                <td className="p-3 border-r border-slate-100 text-center">
+                                  {e.stockStatus ? (
+                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                                      e.stockStatus === 'New Order' 
+                                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/15' 
+                                        : 'bg-orange-500/10 text-orange-605 dark:text-orange-400 border border-orange-500/15'
+                                    }`}>
+                                      {e.stockStatus}
+                                    </span>
+                                  ) : '-'}
+                                </td>
+                                <td className="p-3 border-r border-slate-100 text-right text-slate-805 font-extrabold">
+                                  {e.remainingStock !== undefined ? `${e.remainingStock} ${e.unit || ''}` : '-'}
+                                </td>
+                                <td className="p-3 text-slate-400 max-w-xs truncate font-sans">{e.notes || '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   );
                 })()}
